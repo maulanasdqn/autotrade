@@ -36,8 +36,22 @@ pub struct AnalysisResponse {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PortfolioResponse {
     pub cash_balance: String,
+    #[serde(default)]
+    pub allocated: Option<String>,
     pub positions: Vec<PositionResponse>,
+    #[serde(default)]
+    pub open_orders: Option<Vec<OpenOrderResponse>>,
     pub total_equity: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenOrderResponse {
+    pub id: String,
+    pub symbol: String,
+    pub side: String,
+    pub lot: u32,
+    pub price: String,
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

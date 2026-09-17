@@ -409,23 +409,66 @@ impl BrokerPort for StockbitClient {
             )));
         }
 
-        let orders_val = if raw["data"].is_array() {
-            &raw["data"]
-        } else if raw["data"]["orders"].is_array() {
-            &raw["data"]["orders"]
-        } else if raw["data"]["list"].is_array() {
-            &raw["data"]["list"]
-        } else {
-            return Ok(Vec::new());
+        let arr = match raw["data"].as_array() {
+            Some(a) => a,
+            None => return Ok(Vec::new()),
         };
 
-        let details: Vec<SbOrderDetail> =
-            serde_json::from_value(orders_val.clone())
+        let mut orders = Vec::new();
+        for item in arr {
+            let symbol = item["symbol"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+
+            let side_str = item["side"]
+                .as_str()
+                .unwrap_or_default();
+            let side = if side_str.to_lowercase().contains("sell") {
+                OrderSide::Sell
+            } else {
+                OrderSide::Buy
+            };
+
+            let lot = item["qty"]["lot_total"]
+                .as_u64()
+                .or_else(|| item["qty"]["lot_open"].as_u64())
+                .unwrap_or(0) as u32;
+
+            let price_val = item["price"]["order"]
+                .as_f64()
+                .or_else(|| item["price"].as_f64())
+                .unwrap_or(0.0);
+            let price = Decimal::from_str(&price_val.to_string())
                 .unwrap_or_default();
 
-        Ok(details
-            .iter()
-            .map(Self::parse_order)
+            let status_str = item["status_text"]
+                .as_str()
+                .or_else(|| item["status"].as_str())
+                .unwrap_or_default();
+            let status = Self::map_sb_status(status_str);
+
+            let order_id = item["order_id"]
+                .as_str()
+                .unwrap_or_default();
+            let id = Uuid::from_str(order_id)
+                .unwrap_or_else(|_| Uuid::new_v4());
+
+            let now = Utc::now();
+            orders.push(Order {
+                id,
+                symbol,
+                side,
+                lot,
+                price,
+                status,
+                created_at: now,
+                filled_at: None,
+            });
+        }
+
+        Ok(orders
+            .into_iter()
             .filter(|o| o.status == OrderStatus::Pending)
             .collect())
     }
@@ -479,11 +522,26 @@ impl BrokerPort for StockbitClient {
 
         let balance = data["summary"]["trading"]["balance"]
             .as_f64()
-            .or_else(|| data["summary"]["equity"].as_f64())
+            .unwrap_or(0.0);
+
+        let equity = data["summary"]["equity"]
+            .as_f64()
+            .unwrap_or(0.0);
+
+        let allocated = data["summary"]["amount"]["allocated"]
+            .as_f64()
             .unwrap_or(0.0);
 
         let balance_dec =
             Decimal::from_str(&balance.to_string())
+                .unwrap_or_default();
+
+        let equity_dec =
+            Decimal::from_str(&equity.to_string())
+                .unwrap_or_default();
+
+        let allocated_dec =
+            Decimal::from_str(&allocated.to_string())
                 .unwrap_or_default();
 
         let stocks_arr = if data["results"].is_array() {
@@ -550,6 +608,8 @@ impl BrokerPort for StockbitClient {
 
         Ok(Portfolio {
             balance: balance_dec,
+            equity: equity_dec,
+            allocated: allocated_dec,
             positions,
         })
     }

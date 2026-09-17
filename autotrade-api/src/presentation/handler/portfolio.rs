@@ -17,9 +17,21 @@ pub struct PositionResponse {
 }
 
 #[derive(Serialize)]
+pub struct OrderResponse {
+    pub id: String,
+    pub symbol: String,
+    pub side: String,
+    pub lot: u32,
+    pub price: String,
+    pub status: String,
+}
+
+#[derive(Serialize)]
 pub struct PortfolioResponse {
     pub cash_balance: String,
+    pub allocated: String,
     pub positions: Vec<PositionResponse>,
+    pub open_orders: Vec<OrderResponse>,
     pub total_equity: String,
 }
 
@@ -32,6 +44,8 @@ pub async fn get_portfolio(
             Json(json!({"error": e.to_string()})),
         )
     })?;
+
+    let orders = state.broker.get_open_orders().await.unwrap_or_default();
 
     let positions = portfolio
         .positions
@@ -46,9 +60,23 @@ pub async fn get_portfolio(
         })
         .collect();
 
+    let open_orders = orders
+        .iter()
+        .map(|o| OrderResponse {
+            id: o.id.to_string(),
+            symbol: o.symbol.clone(),
+            side: format!("{:?}", o.side),
+            lot: o.lot,
+            price: o.price.to_string(),
+            status: format!("{:?}", o.status),
+        })
+        .collect();
+
     Ok(Json(PortfolioResponse {
         cash_balance: portfolio.balance.to_string(),
+        allocated: portfolio.allocated.to_string(),
         positions,
+        open_orders,
         total_equity: portfolio.total_equity().to_string(),
     }))
 }

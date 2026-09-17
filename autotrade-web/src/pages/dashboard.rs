@@ -3,7 +3,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::api;
 use crate::components::stock_card::StockCard;
-use crate::dto::{PortfolioResponse, SuggestionDto, TokenStatus};
+use crate::dto::{OpenOrderResponse, PortfolioResponse, SuggestionDto, TokenStatus};
 
 #[component]
 pub fn Dashboard() -> impl IntoView {
@@ -147,7 +147,17 @@ pub fn Dashboard() -> impl IntoView {
                         p.total_equity.parse().unwrap_or(0.0);
                     let cash: f64 =
                         p.cash_balance.parse().unwrap_or(0.0);
-                    let invested = total_equity - cash;
+                    let allocated: f64 = p.allocated
+                        .as_deref()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0.0);
+                    let invested: f64 = p
+                        .positions
+                        .iter()
+                        .map(|pos| {
+                            pos.market_value.parse::<f64>().unwrap_or(0.0)
+                        })
+                        .sum();
                     let total_pnl: f64 = p
                         .positions
                         .iter()
@@ -160,6 +170,8 @@ pub fn Dashboard() -> impl IntoView {
                     } else {
                         0.0
                     };
+                    let open_orders: Vec<OpenOrderResponse> = p.open_orders.clone().unwrap_or_default();
+                    let has_orders = !open_orders.is_empty();
 
                     view! {
                         <div class="stats-grid" style="margin-bottom: 1.5rem">
@@ -179,6 +191,18 @@ pub fn Dashboard() -> impl IntoView {
                                         {format_rp(cash)}
                                     </span>
                                 </div>
+                                {if allocated > 0.0 {
+                                    view! {
+                                        <div class="stat-item">
+                                            <span class="label">"Open Orders"</span>
+                                            <span class="value" style="color: var(--yellow)">
+                                                {format_rp(allocated)}
+                                            </span>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    view! { <span></span> }.into_any()
+                                }}
                             </div>
                             <div class="stat-card">
                                 <div class="stat-card-title">
@@ -201,9 +225,13 @@ pub fn Dashboard() -> impl IntoView {
                             </div>
                             <div class="stat-card">
                                 <div class="stat-card-title">
-                                    "Positions"
+                                    {if has_orders && p.positions.is_empty() {
+                                        "Open Orders"
+                                    } else {
+                                        "Positions"
+                                    }}
                                 </div>
-                                {if p.positions.is_empty() {
+                                {if !has_orders && p.positions.is_empty() {
                                     view! {
                                         <div class="stat-item">
                                             <span class="label">
@@ -241,8 +269,7 @@ pub fn Dashboard() -> impl IntoView {
                                                     };
                                                     let sym = pos.symbol.clone();
                                                     view! {
-                                                        <div class="stat-item"
-                                                            style="display: flex; justify-content: space-between; align-items: center">
+                                                        <div class="stat-item">
                                                             <div>
                                                                 <span
                                                                     style="font-weight: 700; font-size: 0.85rem">
@@ -265,6 +292,43 @@ pub fn Dashboard() -> impl IntoView {
                                                                     "({:+.1}%)",
                                                                     pos_pct,
                                                                 )}
+                                                            </span>
+                                                        </div>
+                                                    }
+                                                })
+                                                .collect::<Vec<_>>()}
+                                            {open_orders
+                                                .iter()
+                                                .map(|ord| {
+                                                    let sym = ord.symbol.clone();
+                                                    let side = ord.side.clone();
+                                                    let price: f64 = ord.price.parse().unwrap_or(0.0);
+                                                    let badge_class = if side == "Buy" {
+                                                        "badge badge-buy"
+                                                    } else {
+                                                        "badge badge-sell"
+                                                    };
+                                                    view! {
+                                                        <div class="stat-item">
+                                                            <div>
+                                                                <span
+                                                                    style="font-weight: 700; font-size: 0.85rem">
+                                                                    {sym}
+                                                                </span>
+                                                                <span class={badge_class}
+                                                                    style="margin-left: 0.35rem; font-size: 0.65rem">
+                                                                    {side}
+                                                                </span>
+                                                                <span
+                                                                    style="color: var(--text-dim); font-size: 0.75rem; margin-left: 0.35rem">
+                                                                    {format!(
+                                                                        "{} lot",
+                                                                        ord.lot,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <span class="value" style="font-size: 0.85rem">
+                                                                {format_rp(price)}
                                                             </span>
                                                         </div>
                                                     }

@@ -168,6 +168,8 @@ impl BrokerPort for SimulatedBroker {
     async fn get_portfolio(&self) -> Result<Portfolio, DomainError> {
         Ok(Portfolio {
             balance: *self.balance.lock().unwrap(),
+            equity: Decimal::ZERO,
+            allocated: Decimal::ZERO,
             positions: self.positions.lock().unwrap().clone(),
         })
     }

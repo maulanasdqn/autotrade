@@ -34,13 +34,18 @@ impl Position {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Portfolio {
     pub balance: Decimal,
+    pub equity: Decimal,
+    pub allocated: Decimal,
     pub positions: Vec<Position>,
 }
 
 impl Portfolio {
     pub fn total_equity(&self) -> Decimal {
+        if !self.equity.is_zero() {
+            return self.equity;
+        }
         let positions_value: Decimal =
             self.positions.iter().map(|p| p.market_value()).sum();
-        self.balance + positions_value
+        self.balance + positions_value + self.allocated
     }
 }
