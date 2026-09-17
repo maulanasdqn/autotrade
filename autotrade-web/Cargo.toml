@@ -1,0 +1,19 @@
+[package]
+name = "autotrade-web"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+leptos.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rust_decimal.workspace = true
+gloo-net = "0.6"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+tw_merge.workspace = true
+icons.workspace = true
+leptos_ui.workspace = true
+
+[package.metadata.leptos]
+tailwind-input-file = "style/tailwind.css"
