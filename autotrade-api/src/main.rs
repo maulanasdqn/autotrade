@@ -7,10 +7,10 @@ use std::sync::Arc;
 
 use infrastructure::ai::AiService;
 use infrastructure::config::AppConfig;
-use infrastructure::idx::client::IdxClient;
 use infrastructure::repository::analysis::InMemoryAnalysisRepo;
 use infrastructure::repository::trade_rule::InMemoryTradeRuleRepo;
 use infrastructure::stockbit::client::StockbitClient;
+use infrastructure::yahoo::client::YahooClient;
 
 use application::analyze::AnalyzeStockUseCase;
 use application::autotrade::AutoTradeUseCase;
@@ -36,7 +36,7 @@ async fn main() {
         );
     }
 
-    let idx = Arc::new(IdxClient::new());
+    let market = Arc::new(YahooClient::new());
 
     let broker = Arc::new(StockbitClient::new(&config.stockbit_token));
     broker.spawn_refresh_task();
@@ -53,13 +53,13 @@ async fn main() {
 
     let state = AppState {
         analyze: Arc::new(AnalyzeStockUseCase::new(
-            idx.clone(),
+            market.clone(),
             ai.clone(),
             analysis_repo,
         )),
         suggest: Arc::new(SuggestStocksUseCase::new(ai)),
         autotrade: Arc::new(AutoTradeUseCase::new(
-            idx.clone(),
+            market.clone(),
             broker.clone(),
             trade_rule_repo.clone(),
         )),
