@@ -560,8 +560,10 @@ impl BrokerPort for StockbitClient {
                             .as_str()
                             .or_else(|| s["code"].as_str())?;
 
-                        let lot = s["lot"]
+                        let lot = s["qty"]["balance"]["lot"]
                             .as_f64()
+                            .or_else(|| s["qty"]["available"]["lot"].as_f64())
+                            .or_else(|| s["lot"].as_f64())
                             .or_else(|| {
                                 s["shares"]
                                     .as_f64()
@@ -574,19 +576,16 @@ impl BrokerPort for StockbitClient {
                             return None;
                         }
 
-                        let avg = s["avg_price"]
+                        let avg = s["price"]["average"]["price"]
                             .as_f64()
-                            .or_else(|| {
-                                s["average_price"].as_f64()
-                            })
+                            .or_else(|| s["avg_price"].as_f64())
+                            .or_else(|| s["average_price"].as_f64())
                             .unwrap_or(0.0);
 
-                        let cur = s["last_price"]
+                        let cur = s["price"]["latest"]
                             .as_f64()
-                            .or_else(|| {
-                                s["current_price"].as_f64()
-                            })
-                            .or_else(|| s["close"].as_f64())
+                            .or_else(|| s["last_price"].as_f64())
+                            .or_else(|| s["current_price"].as_f64())
                             .unwrap_or(avg);
 
                         Some(Position {
