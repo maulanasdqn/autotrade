@@ -161,6 +161,7 @@ dependencies = [
  "tw_merge",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

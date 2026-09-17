@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::api;
@@ -10,13 +11,17 @@ pub fn Trades() -> impl IntoView {
     let running = RwSignal::new(false);
     let error = RwSignal::new(Option::<String>::None);
     let executed = RwSignal::new(Option::<usize>::None);
+    let auto_on = RwSignal::new(false);
+    let timer_id = RwSignal::new(Option::<i32>::None);
 
-    let on_trigger = move |_| {
+    let run_trade = move || {
+        if running.get_untracked() {
+            return;
+        }
         running.set(true);
         error.set(None);
         executed.set(None);
         orders.set(vec![]);
-
         spawn_local(async move {
             match api::trigger_autotrade().await {
                 Ok(resp) => {
@@ -28,6 +33,43 @@ pub fn Trades() -> impl IntoView {
             running.set(false);
         });
     };
+
+    let on_trigger = move |_| run_trade();
+
+    let on_toggle_auto = move |_| {
+        if auto_on.get_untracked() {
+            auto_on.set(false);
+            if let Some(id) = timer_id.get_untracked() {
+                if let Some(w) = web_sys::window() {
+                    w.clear_interval_with_handle(id);
+                }
+                timer_id.set(None);
+            }
+        } else {
+            auto_on.set(true);
+            let cb = Closure::<dyn Fn()>::new(move || run_trade());
+            if let Some(w) = web_sys::window() {
+                if let Ok(id) =
+                    w.set_interval_with_callback_and_timeout_and_arguments_0(
+                        cb.as_ref().unchecked_ref(),
+                        300_000,
+                    )
+                {
+                    timer_id.set(Some(id));
+                }
+            }
+            cb.forget();
+            run_trade();
+        }
+    };
+
+    on_cleanup(move || {
+        if let Some(id) = timer_id.get_untracked() {
+            if let Some(w) = web_sys::window() {
+                w.clear_interval_with_handle(id);
+            }
+        }
+    });
 
     view! {
         <div>
@@ -52,7 +94,7 @@ pub fn Trades() -> impl IntoView {
                         <span class="label">"Step 2"</span>
                         <span class="value"
                             style="font-size: 0.85rem; font-weight: 500">
-                            "Click Run AutoTrade"
+                            "Click Run or enable Auto-Run"
                         </span>
                     </div>
                 </div>
@@ -61,13 +103,19 @@ pub fn Trades() -> impl IntoView {
                     <div class="stat-item">
                         <span class="label">"Data Source"</span>
                         <span class="value"
-                            style="font-size: 0.85rem">"IDX Real-Time"
+                            style="font-size: 0.85rem">"Yahoo Finance"
                         </span>
                     </div>
                     <div class="stat-item">
-                        <span class="label">"AI Model"</span>
-                        <span class="value"
-                            style="font-size: 0.85rem">"DeepSeek"
+                        <span class="label">"Auto-Run"</span>
+                        <span class="value" style="font-size: 0.85rem">
+                            {move || {
+                                if auto_on.get() {
+                                    "Every 5 min"
+                                } else {
+                                    "Off"
+                                }
+                            }}
                         </span>
                     </div>
                 </div>
@@ -102,7 +150,7 @@ pub fn Trades() -> impl IntoView {
             </div>
 
             <section class="section"
-                style="display: flex; align-items: center; gap: 1rem">
+                style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap">
                 <button
                     class="btn btn-primary"
                     on:click=on_trigger
@@ -114,6 +162,24 @@ pub fn Trades() -> impl IntoView {
                             "Executing..."
                         } else {
                             "Run AutoTrade"
+                        }
+                    }}
+                </button>
+                <button
+                    on:click=on_toggle_auto
+                    style=move || {
+                        if auto_on.get() {
+                            "min-width: 160px; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; background: #dc2626; color: white;"
+                        } else {
+                            "min-width: 160px; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600; cursor: pointer; border: 2px solid #2563eb; background: white; color: #2563eb;"
+                        }
+                    }
+                >
+                    {move || {
+                        if auto_on.get() {
+                            "Stop Auto-Run"
+                        } else {
+                            "Auto-Run (5m)"
                         }
                     }}
                 </button>

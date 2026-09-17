@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use wasm_bindgen::prelude::*;
 
 mod api;
 mod components;
@@ -22,9 +23,44 @@ enum Tab {
     Rules,
 }
 
+fn hash_to_tab(hash: &str) -> Tab {
+    match hash.trim_start_matches('#').trim_start_matches('/') {
+        "analysis" => Tab::Analysis,
+        "trades" => Tab::Trades,
+        "rules" => Tab::Rules,
+        _ => Tab::Dashboard,
+    }
+}
+
+fn tab_to_hash(t: Tab) -> &'static str {
+    match t {
+        Tab::Dashboard => "#/dashboard",
+        Tab::Analysis => "#/analysis",
+        Tab::Trades => "#/trades",
+        Tab::Rules => "#/rules",
+    }
+}
+
+fn current_hash() -> String {
+    web_sys::window()
+        .and_then(|w| w.location().hash().ok())
+        .unwrap_or_default()
+}
+
 #[component]
 fn App() -> impl IntoView {
-    let tab = RwSignal::new(Tab::Dashboard);
+    let tab = RwSignal::new(hash_to_tab(&current_hash()));
+
+    let cb = Closure::<dyn Fn()>::new(move || {
+        tab.set(hash_to_tab(&current_hash()));
+    });
+    if let Some(w) = web_sys::window() {
+        let _ = w.add_event_listener_with_callback(
+            "hashchange",
+            cb.as_ref().unchecked_ref(),
+        );
+    }
+    cb.forget();
 
     let nav_item = move |t: Tab, label: &'static str| {
         let active = move || {
@@ -32,9 +68,7 @@ fn App() -> impl IntoView {
         };
         view! {
             <li>
-                <a class=active on:click=move |_| tab.set(t)>
-                    {label}
-                </a>
+                <a class=active href=tab_to_hash(t)>{label}</a>
             </li>
         }
     };
