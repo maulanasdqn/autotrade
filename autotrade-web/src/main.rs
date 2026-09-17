@@ -23,8 +23,8 @@ enum Tab {
     Rules,
 }
 
-fn hash_to_tab(hash: &str) -> Tab {
-    match hash.trim_start_matches('#').trim_start_matches('/') {
+fn path_to_tab(path: &str) -> Tab {
+    match path.trim_start_matches('/') {
         "analysis" => Tab::Analysis,
         "trades" => Tab::Trades,
         "rules" => Tab::Rules,
@@ -32,31 +32,39 @@ fn hash_to_tab(hash: &str) -> Tab {
     }
 }
 
-fn tab_to_hash(t: Tab) -> &'static str {
+fn tab_to_path(t: Tab) -> &'static str {
     match t {
-        Tab::Dashboard => "#/dashboard",
-        Tab::Analysis => "#/analysis",
-        Tab::Trades => "#/trades",
-        Tab::Rules => "#/rules",
+        Tab::Dashboard => "/",
+        Tab::Analysis => "/analysis",
+        Tab::Trades => "/trades",
+        Tab::Rules => "/rules",
     }
 }
 
-fn current_hash() -> String {
+fn current_path() -> String {
     web_sys::window()
-        .and_then(|w| w.location().hash().ok())
+        .and_then(|w| w.location().pathname().ok())
         .unwrap_or_default()
+}
+
+fn push_path(path: &str) {
+    if let Some(w) = web_sys::window() {
+        if let Ok(h) = w.history() {
+            let _ = h.push_state_with_url(&JsValue::NULL, "", Some(path));
+        }
+    }
 }
 
 #[component]
 fn App() -> impl IntoView {
-    let tab = RwSignal::new(hash_to_tab(&current_hash()));
+    let tab = RwSignal::new(path_to_tab(&current_path()));
 
     let cb = Closure::<dyn Fn()>::new(move || {
-        tab.set(hash_to_tab(&current_hash()));
+        tab.set(path_to_tab(&current_path()));
     });
     if let Some(w) = web_sys::window() {
         let _ = w.add_event_listener_with_callback(
-            "hashchange",
+            "popstate",
             cb.as_ref().unchecked_ref(),
         );
     }
@@ -68,7 +76,11 @@ fn App() -> impl IntoView {
         };
         view! {
             <li>
-                <a class=active href=tab_to_hash(t)>{label}</a>
+                <a class=active href=tab_to_path(t) on:click=move |ev| {
+                    ev.prevent_default();
+                    push_path(tab_to_path(t));
+                    tab.set(t);
+                }>{label}</a>
             </li>
         }
     };
